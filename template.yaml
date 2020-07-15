@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Pinpoint Weather Bot - responds to a text message from a user with current weather conditions.
+  Incoming text message must conform to the format "weather <<zipcode>>", else it will be ignored.
+
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: 'Pinpoint-Weather-Bot'
+    Description: This application responds to an incoming SMS (with format 'weather <<zipcode>>') with current weather conditions.
+    Author: James Beswick
+    SpdxLicenseId: mit-0
+    LicenseUrl: license.txt
+    ReadmeUrl: README.md
+    Labels: ['SMS', 'weather', 'pinpoint', 'lambda', 'nodejs']
+    HomePageUrl: https://github.com/jbesw/aws-serverless-sar-pinpoint-weather-bot.git
+    SemanticVersion: 1.0.0
+    SourceCodeUrl: https://github.com/jbesw/aws-serverless-sar-pinpoint-weather-bot.git
+
+Parameters:
+  APIkey:
+    Type: String
+    Default: 'APIkey'
+    Description: (Required) OpenWeatherMap API key
+    AllowedPattern: ^[A-Za-z0-9-]+$
+    ConstraintDescription: 'Required parameter.'
+  ApplicationId:
+    Type: String
+    Default: 'PinpointApplicationId'
+    Description: (Required) Pinpoint application ID (project ID)
+    AllowedPattern: ^[A-Za-z0-9-]+$
+    ConstraintDescription: 'Required parameter.'
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 10
+
+Resources:
+  smsResponderFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: smsResponderFunction/
+      Handler: app.lambdaHandler
+      Runtime: nodejs12.x
+      Environment:
+        Variables:
+          ApplicationId: !Ref ApplicationId
+          APIkey: !Ref APIkey      
+      Policies:
+      - Statement:
+        - Sid: PinpointAccess
+          Effect: Allow
+          Action:
+          - mobiletargeting:*
+          Resource: '*'
+        - Sid: PinpointSNStopic
+          Effect: Allow
+          Action:
+            - sns:*
+          Resource: !Ref smsResponderIncomingSNSTopic
+      Events:
+        incomingSNS:
+          #SNS queue where Pinpoint sends incoming text messages
+          Type: SNS
+          Properties:
+            Topic:
+              Ref: smsResponderIncomingSNSTopic
+  smsResponderIncomingSNSTopic:
+    Type: 'AWS::SNS::Topic'
+
+Outputs:
+  smsResponderFunction:
+    Description: "Lambda Function ARN"
+    Value: !GetAtt smsResponderFunction.Arn
+  smsResponderFunctionIamRole:
+    Description: "Implicit IAM Role created for function"
+    Value: !GetAtt smsResponderFunctionRole.Arn
